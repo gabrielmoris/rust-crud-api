@@ -32,7 +32,7 @@ fn main(){
     };
 
     // start the server and print port
-    let listener = TcpListener::bind(format!(0.0.0.0:8080)).unwrap();
+    let listener = TcpListener::bind(format!("0.0.0.0:8080")).unwrap();
     println!("Server started at port 8080");
 
     // handle connections
@@ -76,8 +76,42 @@ fn handle_client (mut stream: TcpStream){
 }
 
 // Controllers
+// create user
+fn handle_post_request(request: &str)-> (String,String){
+    match(get_user_request_body(&request), Client::connect(DB_URL,NoTls)){
+        (Ok(user), Ok(mut client)) => {
+            client.execute(
+                "INSERT INTO users (name,email) VALUES ($1, $2)",
+                &[&user.name, &user.email]
+            ).unwrap();
 
+            (OK_RESPONSE.to_string(),"User created".to_string())
+        }
+        _=>(INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
+    }
+}
 
+//get user by id
+fn handle_get_request(request: &str)-> (String,String){
+    match(get_id(&request).parse::<i32>, Client::connect(DB_URL,NoTls)){
+        (Ok(id),Ok(mut client))=>
+            match client.query("SELECT* FROM users WHERE id =$1", &[&id]) {
+                Ok(row) => {
+                    let user = User{
+                        id: row.get(0),
+                        name: row.get(1),
+                        email: row.get(2)
+                    };
+                    
+                    (OK_RESPONSE.to_string(), serde_json::to_string(&user).unwrap())
+                }
+                _=>(INTERNAL_SERVER_ERROR.to_string(),"USer not foundr".to_string())
+            }
+        _=>(INTERNAL_SERVER_ERROR.to_string(),"Error".to_string())
+    }
+}
+
+// get all users
 
 // Set database
 fn set_database() -> Resul<(),PostgresError>{
